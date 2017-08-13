@@ -12,3 +12,4 @@ for i in range(100000):
 	lives = info['ale.lives']
 	print("lives: ", lives)
 	print("action space", env.action_space)
+	print("observation shape: " + str(len(observation)) + ", " + str(len(observation[0])) + ", " + str(len(observation[0][0])))
