@@ -16,9 +16,9 @@ class Qnetwork():
 	def __init__(self,h_size):
 		#The network recieves a frame from the game, flattened into an array.
 		#It then resizes it and processes it through four convolutional layers.
-		#self.scalarInput =  tf.placeholder(shape=[None,INPUT_SIZE],dtype=tf.float32)
-		#self.imageIn = tf.reshape(self.scalarInput,shape=[-1,210,160,3])
-		self.imageIn = tf.placeholder(shape = [None, 210, 160, 3], dtype = tf.float32) #None here is batch size - number of images to process?
+		self.scalarInput =  tf.placeholder(shape=[None,INPUT_SIZE],dtype=tf.float32)
+		self.imageIn = tf.reshape(self.scalarInput,shape=[-1,210,160,3])
+		#self.imageIn = tf.placeholder(shape = [None, 210, 160, 3], dtype = tf.float32) #None here is batch size - number of images to process?
 		print("imageIn: " + str(self.imageIn.get_shape()))
 		self.conv1 = slim.conv2d( \
 			inputs=self.imageIn,num_outputs=32,kernel_size=[8,8],stride=[4,4],padding='VALID', biases_initializer=None)
@@ -91,7 +91,7 @@ def updateTarget(op_holder,sess):
 		sess.run(op)
 		
 batch_size = 32 #How many experiences to use for each training step.
-update_freq = 4 #How often to perform a training step.
+update_freq = 100 #How often to perform a training step.
 y = .99 #Discount factor on the target Q-values
 startE = 1 #Starting chance of random action
 endE = 0.1 #Final chance of random action
@@ -99,7 +99,7 @@ annealing_steps = 10000. #How many steps of training to reduce startE to endE.
 num_episodes = 10000 #How many episodes of game environment to train network with.
 pre_train_steps = 10000 #How many steps of random actions before training begins.
 max_epLength = 10000 #The max allowed length of our episode.
-load_model = False #Whether to load a saved model.
+load_model = True #Whether to load a saved model.
 path = "./SpaceInvaders" #The path to save our model to.
 h_size = 512 #The size of the final convolutional layer before splitting it into Advantage and Value streams.
 tau = 0.001 #Rate to update target network toward primary network
@@ -155,9 +155,6 @@ with tf.Session() as sess:
 		while j < max_epLength: #If the agent takes longer than 200 moves to reach either of the blocks, end the trial.
 			j+=1
 			
-			#streamAC = sess.run(tf.shape(mainQN.streamAC), feed_dict = {mainQN.imageIn:[s]})
-			#print("streamAC: " + str(streamAC))
-			
 			#Choose an action by greedily (with e chance of random action) from the Q-network
 			if np.random.rand(1) < e or total_steps < pre_train_steps:
 				a = np.random.randint(0,4)
@@ -189,21 +186,21 @@ with tf.Session() as sess:
 					
 					#print("train batch rows: " + str(len(trainBatch[:,3])))
 					#print("train batch columns: " + str(len(trainBatch[:,3][0])))
-					Q1 = sess.run(mainQN.predict,feed_dict={mainQN.imageIn:np.vstack(trainBatch[:,3])})
-					Q2 = sess.run(targetQN.Qout,feed_dict={targetQN.imageIn:np.vstack(trainBatch[:,3])})
+					Q1 = sess.run(mainQN.predict,feed_dict={mainQN.scalarInput:np.vstack(trainBatch[:,3])})
+					Q2 = sess.run(targetQN.Qout,feed_dict={targetQN.scalarInput:np.vstack(trainBatch[:,3])})
 					end_multiplier = -(trainBatch[:,4] - 1)
 					doubleQ = Q2[range(batch_size),Q1]
 					targetQ = trainBatch[:,2] + (y*doubleQ * end_multiplier)
 					#Update the network with our target values.
 					_ = sess.run(mainQN.updateModel, \
-						feed_dict={mainQN.imageIn:np.vstack(trainBatch[:,0]),mainQN.targetQ:targetQ, mainQN.actions:trainBatch[:,1]})
+						feed_dict={mainQN.scalarInput:np.vstack(trainBatch[:,0]),mainQN.targetQ:targetQ, mainQN.actions:trainBatch[:,1]})
 					
 					updateTarget(targetOps,sess) #Update the target network toward the primary network.
 			rAll += r
 			s = s1
 			
 			if d == True:
-				#print("episode #" + str(i) + " - " + "reward: " + str(rAll) + ", steps: " + str(j))
+				print("episode #" + str(i) + " - " + "reward: " + str(rAll) + ", steps: " + str(j))
 				break
 		
 		myBuffer.add(episodeBuffer.buffer)
@@ -214,6 +211,6 @@ with tf.Session() as sess:
 			saver.save(sess,path+'/model-'+str(i)+'.ckpt')
 			#print("Saved Model")
 		if len(rList) % LOG_FREQUENCY == 0:
-			print("Mean reward for last " + str(SAVE_FREQUENCY) + " episodes: " + str(np.mean(rList[-SAVE_FREQUENCY:])))
+			print("Mean reward for " + str(i - SAVE_FREQUENCY) + " - " + str(i) + ": " + str(np.mean(rList[-SAVE_FREQUENCY:])))
 	saver.save(sess,path+'/model-'+str(i)+'.ckpt')
 #print("Percent of succesful episodes: " + str(sum(rList)/num_episodes) + "%")
