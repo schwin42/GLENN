@@ -3,18 +3,18 @@
 
 
 
-
+print("program started")
 
 class Agent() :
 	def __init__ (self, learning_rate, nodes_per_layer, hidden_layer_count):
 		#Create placeholders and operations
-		self.chosen_action = ""; #Controller output
+		self.chosen_action = "" #Controller output
 
-episode_count = 2000
+epoch_count = 2000
 
 backprop_frequency = 5
 
-for i in range(episode_count):
+for i in range(epoch_count):
 #For each episode
 	running_reward = 0.
 
@@ -29,4 +29,8 @@ for i in range(episode_count):
 		#Choose between network output and random action
 
 	if i != 0 and i % backprop_frequency == 0:
+		print("backprop")
 		#Backpropagate reward
+
+
+print("program terminated")
