@@ -8,9 +8,13 @@ import tensorflow.contrib.slim as slim
 #import matplotlib.pyplot as plt
 #import scipy.misc
 import os
+#from keras.activations import relu
 #%matplotlib inline
 
-env = gym.make("SpaceInvaders-v0")
+import time
+
+env = gym.make("SpaceInvaders" + "NoFrameskip-v4")
+#env = gym.make("SpaceInvaders-v0")
 
 class Qnetwork():
 	def __init__(self,h_size):
@@ -35,17 +39,33 @@ class Qnetwork():
 			inputs=self.conv3,num_outputs=h_size,kernel_size=[7,7],stride=[6,2],padding='VALID', biases_initializer=None)
 		print("conv4: " + str(self.conv4.get_shape()))	
 		#We take the output from the final convolutional layer and split it into separate advantage and value streams.
-		self.streamAC,self.streamVC = tf.split(self.conv4,2,3) #Should be 1 x 1 x 1 256, but is 1 x 16 x 10 x 256
+		#self.streamAC,self.streamVC = tf.split(self.conv4,2,3) #Should be 1 x 1 x 1 256
+		self.streamAC = self.conv4
+		self.streamVC = self.conv4
+		
 		print("streamAC", self.streamAC.get_shape())
 		self.streamA = slim.flatten(self.streamAC)
 		self.streamV = slim.flatten(self.streamVC)
 		xavier_init = tf.contrib.layers.xavier_initializer() #Initializes weights proportionate to input layer
 		
+		#Output
 		#print("action space: " + str(env.action_space.n) + ", " + str(type(env.action_space.n)))
-		self.AW = tf.Variable(xavier_init([h_size//2,env.action_space.n]))
-		self.VW = tf.Variable(xavier_init([h_size//2,1]))
-		self.Advantage = tf.matmul(self.streamA,self.AW) # 1 x 256 (H) * 256(H) x 6 (action_size)
-		self.Value = tf.matmul(self.streamV,self.VW)
+		#self.AW = tf.Variable(xavier_init([h_size,env.action_space.n])) #Action weights
+		#self.VW = tf.Variable(xavier_init([h_size,1])) #Value weights
+		
+		#FC layers
+		self.advantage_fc1 = slim.fully_connected(self.streamA, h_size, weights_initializer=xavier_init, activation_fn=tf.nn.relu, biases_initializer= xavier_init)
+		self.advantage_fc2 = slim.fully_connected(self.advantage_fc1, h_size, weights_initializer=xavier_init, activation_fn=tf.nn.relu, biases_initializer= xavier_init)
+		
+		self.value_fc1 = slim.fully_connected(self.streamV, h_size, weights_initializer=xavier_init, activation_fn=tf.nn.relu, biases_initializer= xavier_init)
+		self.value_fc2 = slim.fully_connected(self.value_fc1, h_size, weights_initializer=xavier_init, activation_fn=tf.nn.relu, biases_initializer= xavier_init)
+		
+		#Output
+		self.Advantage = slim.fully_connected(self.advantage_fc2, env.action_space.n, weights_initializer=xavier_init, activation_fn=tf.nn.softmax, biases_initializer= xavier_init)
+		self.Value = slim.fully_connected(self.value_fc2, 1, weights_initializer=xavier_init, activation_fn= None, biases_initializer= xavier_init)
+
+		#self.Advantage = tf.matmul(self.streamA,self.AW) # 1 x 256 (H) * 256(H) x 6 (action_size)
+		#self.Value = tf.matmul(self.streamV,self.VW)
 		
 		#Then combine them together to get our final Q-values.
 		self.Qout = self.Value + tf.subtract(self.Advantage,tf.reduce_mean(self.Advantage,axis=1,keep_dims=True))
@@ -99,7 +119,7 @@ annealing_steps = 10000. #How many steps of training to reduce startE to endE.
 num_episodes = 10000 #How many episodes of game environment to train network with.
 pre_train_steps = 10000 #How many steps of random actions before training begins.
 max_epLength = 10000 #The max allowed length of our episode.
-load_model = True #Whether to load a saved model.
+load_model = False #Whether to load a saved model.
 path = "./SpaceInvaders" #The path to save our model to.
 h_size = 512 #The size of the final convolutional layer before splitting it into Advantage and Value streams.
 tau = 0.001 #Rate to update target network toward primary network
@@ -152,15 +172,22 @@ with tf.Session() as sess:
 		rAll = 0
 		j = 0
 		#The Q-Network
-		while j < max_epLength: #If the agent takes longer than 200 moves to reach either of the blocks, end the trial.
+		while j < max_epLength:
+			env.render()
 			j+=1
 			
 			#Choose an action by greedily (with e chance of random action) from the Q-network
 			if np.random.rand(1) < e or total_steps < pre_train_steps:
 				a = np.random.randint(0,4)
 			else:
+				time_before_feed_forward = time.time()
 				a = sess.run(mainQN.predict,feed_dict={mainQN.scalarInput:[s]})[0]
+				
+				time_after_feed_forward = time.time()
+				feed_forward_elapsed_time = time_after_feed_forward - time_before_feed_forward
+				#print("feed forward time: ", feed_forward_elapsed_time)
 			s1,r,d, info = env.step(a) #Last arg is info, containing lives
+			#print("steps: ", env._elapsed_steps)
 			#print("info", info)
 			lives = info['ale.lives']
 			#print("lives", lives)
@@ -186,16 +213,20 @@ with tf.Session() as sess:
 					
 					#print("train batch rows: " + str(len(trainBatch[:,3])))
 					#print("train batch columns: " + str(len(trainBatch[:,3][0])))
-					Q1 = sess.run(mainQN.predict,feed_dict={mainQN.scalarInput:np.vstack(trainBatch[:,3])})
+					Q1 = sess.run(mainQN.predict,feed_dict={mainQN.scalarInput:np.vstack(trainBatch[:,3])}) #Column 3 is state
 					Q2 = sess.run(targetQN.Qout,feed_dict={targetQN.scalarInput:np.vstack(trainBatch[:,3])})
-					end_multiplier = -(trainBatch[:,4] - 1)
+					end_multiplier = -(trainBatch[:,4] - 1) #Column 4 is done
 					doubleQ = Q2[range(batch_size),Q1]
 					targetQ = trainBatch[:,2] + (y*doubleQ * end_multiplier)
 					#Update the network with our target values.
 					_ = sess.run(mainQN.updateModel, \
 						feed_dict={mainQN.scalarInput:np.vstack(trainBatch[:,0]),mainQN.targetQ:targetQ, mainQN.actions:trainBatch[:,1]})
 					
+					backprop_start_time = time.time()
 					updateTarget(targetOps,sess) #Update the target network toward the primary network.
+					backprop_end_time = time.time()
+					backprop_elapsed_time = backprop_end_time - backprop_start_time
+					#print("backprop elapsed time: ", backprop_elapsed_time)
 			rAll += r
 			s = s1
 			
