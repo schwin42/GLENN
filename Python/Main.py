@@ -35,19 +35,33 @@ class Agent() :
 		#self value_output_layer = slim.fully_connected(value_fc_layers[-1], 1, weights_initializer = xavier_init, bias_initializer = tf.xavier_init)
 		self.chosen_action = tf.argmax(self.advantage_prediction, 1)[0]
 
+class ExperienceBuffer():
+	def __init__(self, buffer_size = 50000):
+		self.buffer = []
+		self.buffer_size = buffer_size
+	
+	def add(self, experience):
+		pass
+	
+	def sample(self, size):
+		pass
+
 #Constants
 epoch_count = 50
 backprop_frequency = 5
 max_epoch_length = 200
 
 #Environment constants
+ENVIRONMENT_NAME = "CartPole-v0"
 INPUT_SIZE = 4
 
+
 #Initialize environment
-env = gym.make("CartPole-v0")
+env = gym.make(ENVIRONMENT_NAME)
 
 #Initalize agent
 agent = Agent(0.0001, 128, 2)
+tf.reset_default_graph()
 init = tf.global_variables_initializer()
 
 with tf.Session() as sess:
@@ -67,6 +81,7 @@ with tf.Session() as sess:
 		
 			#Forward feed input features through fully connected hidden layers
 			#agent.advantage
+			print("advantage: " + str(sess.run(agent.advantage_prediction, feed_dict = {agent.state: [state]})))
 			action = sess.run(agent.chosen_action, feed_dict = {agent.state: [state]})
 
 			#TODO Choose between network output and random action
