@@ -61,7 +61,6 @@ env = gym.make(ENVIRONMENT_NAME)
 
 #Initalize agent
 agent = Agent(0.0001, 128, 2)
-tf.reset_default_graph()
 init = tf.global_variables_initializer()
 
 with tf.Session() as sess:
@@ -80,8 +79,8 @@ with tf.Session() as sess:
 			env.render()
 		
 			#Forward feed input features through fully connected hidden layers
-			#agent.advantage
 			print("advantage: " + str(sess.run(agent.advantage_prediction, feed_dict = {agent.state: [state]})))
+			print("State: " + str(state))
 			action = sess.run(agent.chosen_action, feed_dict = {agent.state: [state]})
 
 			#TODO Choose between network output and random action
