@@ -4,6 +4,8 @@ Created on Sep 24, 2017
 @author: schwin42
 '''
 import unittest
+import numpy as np
+from Model import ExperienceBuffer
 
 class TestStringMethods(unittest.TestCase):
 
@@ -26,16 +28,17 @@ class TestExperienceBuffer(unittest.TestCase):
 		buffer = ExperienceBuffer()
 		experience = []
 		for i in range(10):
-			experience.append(observation = [[i, i, i, i], i, i, [i, i, i, i], i])
+			observation = [[i, i, i, i], i, i, [i, i, i, i], i]
+			experience.append(observation)
 		
 		buffer.add(experience)
 		exhaustive_sample = buffer.sample(10)
 		
 		for i in range(10):
 			match_found = False
-			for j in range(exhaustive_sample.length()):
-				if buffer[i][0] == exhaustive_sample[j][0]:
-					exhaustive_sample.remove(j)
+			for j in range(len(exhaustive_sample)):
+				if experience[i][0] == exhaustive_sample[j][0]:
+					np.delete(exhaustive_sample, j)
 					match_found = True
 					break
 				else:
@@ -44,8 +47,8 @@ class TestExperienceBuffer(unittest.TestCase):
 			#Inner loop ended with no matching experience found, so fail
 			self.assertTrue(match_found, "Experience match not found in sample")
 		
-		self.assertEqual(exhaustive_sample.length, 0, "Buffer contains more items than source experience")	
+		self.assertEqual(len(exhaustive_sample), 0, "Buffer contains more items than source experience")	
 	
 
 if __name__ == '__main__':
-    unittest.main()
+	unittest.main()

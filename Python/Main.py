@@ -35,16 +35,7 @@ class Agent() :
 		#self value_output_layer = slim.fully_connected(value_fc_layers[-1], 1, weights_initializer = xavier_init, bias_initializer = tf.xavier_init)
 		self.chosen_action = tf.argmax(self.advantage_prediction, 1)[0]
 
-class ExperienceBuffer():
-	def __init__(self, buffer_size = 50000):
-		self.buffer = []
-		self.buffer_size = buffer_size
-	
-	def add(self, experience):
-		pass
-	
-	def sample(self, size):
-		pass
+
 
 #Constants
 epoch_count = 50
@@ -54,7 +45,6 @@ max_epoch_length = 200
 #Environment constants
 ENVIRONMENT_NAME = "CartPole-v0"
 INPUT_SIZE = 4
-
 
 #Initialize environment
 env = gym.make(ENVIRONMENT_NAME)
