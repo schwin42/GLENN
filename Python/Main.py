@@ -2,12 +2,17 @@ import gym
 import numpy as np
 import tensorflow as tf
 import tensorflow.contrib.slim as slim
-
+from Model import ExperienceBuffer
+#from turtle import done
 
 print("program started")
 
 class Agent() :
 	def __init__ (self, learning_rate, nodes_per_layer, hidden_layer_count):
+		
+		#Create experience buffer
+		self.experience_buffer = ExperienceBuffer()
+		
 		#Create placeholders and operations
 		self.state = tf.placeholder(shape = [None, INPUT_SIZE], dtype = tf.float32)
 		xavier_init = tf.contrib.layers.xavier_initializer()
@@ -31,11 +36,31 @@ class Agent() :
 		# 	layer_input = layer
 
 		#Output
-		self.advantage_prediction = slim.fully_connected(self._advantage_fc_layers[-1], env.action_space.n, weights_initializer = xavier_init, biases_initializer = xavier_init, activation_fn = tf.nn.softmax) #Should this really be softmax or should this represent expected reward?
+		self.forwardProp_quality = slim.fully_connected(self._advantage_fc_layers[-1], env.action_space.n, weights_initializer = xavier_init, biases_initializer = xavier_init, activation_fn = tf.nn.softmax) #Should this really be softmax or should this represent expected reward?
+		#TODO Dueling functionality - split network into value and advantage streams
 		#self value_output_layer = slim.fully_connected(value_fc_layers[-1], 1, weights_initializer = xavier_init, bias_initializer = tf.xavier_init)
-		self.chosen_action = tf.argmax(self.advantage_prediction, 1)[0]
+		self.chosen_action = tf.argmax(self.forwardProp_quality, 1)[0]
+		
+		#Update
+		
+		#self.backProp_chosen_action
 
+def select_boltzmann_action(action_qualities):
+	lower_bound = 0.
+	random_number = np.random.rand(1)
+	#print("random: ", random_number)
+	#print("array: ", action_qualities)
 
+	for index, value in enumerate(action_qualities):
+#		print("action: ", action_qualities[index])
+		#print("index: ", str(index))
+		if random_number >= lower_bound and random_number <= value + lower_bound:
+			#print("returning ", index)
+			return index
+		else:
+			lower_bound += value
+			if(index >= len(action_qualities) - 1):
+				raise ValueError("Assumption didn't hold for select_boltzmann_action")
 
 #Constants
 epoch_count = 50
@@ -69,25 +94,36 @@ with tf.Session() as sess:
 			env.render()
 		
 			#Forward feed input features through fully connected hidden layers
-			print("advantage: " + str(sess.run(agent.advantage_prediction, feed_dict = {agent.state: [state]})))
-			print("State: " + str(state))
-			action = sess.run(agent.chosen_action, feed_dict = {agent.state: [state]})
-
-			#TODO Choose between network output and random action
-			#print("ad prob" + str(advantage_probabilities))
+			#print("qualities: " + str(sess.run(agent.forwardProp_quality, feed_dict = {agent.state: [state]})))
+# 			print("State: " + str(state))
+			#action = sess.run(agent.chosen_action, feed_dict = {agent.state: [state]})
+			action_qualities = sess.run(agent.forwardProp_quality, feed_dict = {agent.state: [state]})
 			
-			print("action: " + str(action))
+			action = select_boltzmann_action(action_qualities[0])
+			
+			#print("action: " + str(action))
 			
 			observation, reward, is_done, info = env.step(action)
 			#Choose random action - observation, reward, done, info = env.step(env.action_space.sample()) #Choose random action
 			running_reward += reward
+			
+			#Add experience to buffer
+			experience_array = np.array([state, action, reward, observation, is_done])
+			experience = np.reshape(experience_array, [1,5])
+			agent.experience_buffer.add(experience)
+			
+			#episodeBuffer.add(np.reshape(np.array([s,a,r,s1,d]),[1,5])) #Save the experience to our episode buffer.
+
 
 			if is_done == True:
 				total_reward_by_episode.append(running_reward)
 				print("Reward for episode " + str(i) + ": " + str(running_reward))
 				if(i != 0 and i % 10 == 0):
 					print("Mean reward for last ten episodes: " + str(np.mean(total_reward_by_episode)))
-				break
+					
+				#Perform backprop at the end of every episode
+				
+				break #Bail out of step iterator
 
 
 		#if i != 0 and i % backprop_frequency == 0:
