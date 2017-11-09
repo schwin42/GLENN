@@ -22,7 +22,7 @@ class Agent() :
 		#Advantage network
 		self._advantage_fc_layers = []
 		_layer_input = self.state
-		for i in range(hidden_layer_count):
+		for _ in range(hidden_layer_count):
 			layer = slim.fully_connected(_layer_input, nodes_per_layer, weights_initializer = xavier_init, biases_initializer = xavier_init, activation_fn = tf.nn.relu) 
 			self._advantage_fc_layers.append(layer)
 			_layer_input = layer
@@ -43,6 +43,13 @@ class Agent() :
 		
 		#Update
 		
+		#Calculate quality error
+		
+		#Zero out error for non-chosen actions
+		
+		#Use adam optimizer to minimize loss
+		
+		self.backProp_experience
 		#self.backProp_chosen_action
 
 def select_boltzmann_action(action_qualities):
@@ -64,8 +71,9 @@ def select_boltzmann_action(action_qualities):
 
 #Constants
 epoch_count = 50
-backprop_frequency = 5
+#backprop_frequency = 5
 max_epoch_length = 200
+batch_size = 100 #How many experiences to backprop per update
 
 #Environment constants
 ENVIRONMENT_NAME = "CartPole-v0"
@@ -122,8 +130,10 @@ with tf.Session() as sess:
 					print("Mean reward for last ten episodes: " + str(np.mean(total_reward_by_episode)))
 					
 				#Perform backprop at the end of every episode
+				training_batch = agent.experience_buffer.sample(batch_size) #Experience features x number of experiences
 				
-				break #Bail out of step iterator
+				
+				break #Episode is over, bail out of step iterator
 
 
 		#if i != 0 and i % backprop_frequency == 0:
@@ -135,4 +145,4 @@ with tf.Session() as sess:
 
 
 
-print("program terminated")
+print("program exited gracefully")
